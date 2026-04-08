@@ -1,3 +1,4 @@
+#include "pch.h"
 #include "SESSION.h"
 
 void SESSION::do_recv()

@@ -1,5 +1,4 @@
 #pragma once
-#include "pch.h"
 
 // 비동기 io 작업을 위한 구조체, 작업의 상태와 완료를 담는 랩
 // 그러나 여기서는 overlapped 구조체를 확장

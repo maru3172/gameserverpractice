@@ -1,4 +1,7 @@
 #include "pch.h"
+#include "SESSION.h"
+
+std::unordered_map<long long, SESSION> clients;
 
 int main()
 {

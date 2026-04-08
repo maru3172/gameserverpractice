@@ -1,3 +1,4 @@
+#include "pch.h"
 #include "EXP_OVER.h"
 
 EXP_OVER::EXP_OVER()

@@ -1,8 +1,6 @@
 #pragma once
-#include "pch.h"
+#include "EXP_OVER.h"
 
-class SESSION;
-std::unordered_map<long long, SESSION> clients; // key=id, value=¼¼¼Ç
 class SESSION
 {
 public:

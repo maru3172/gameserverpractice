@@ -124,6 +124,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="EXP_OVER.cpp" />
+    <ClCompile Include="pch.cpp" />
     <ClCompile Include="Server.cpp" />
     <ClCompile Include="SESSION.cpp" />
   </ItemGroup>
