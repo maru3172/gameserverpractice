@@ -1,0 +1,28 @@
+#pragma once
+#include "EXP_OVER.h"
+
+class SESSION
+{
+public:
+	SESSION();
+	~SESSION();
+
+	void do_recv(); // 수신 함수
+	void do_send(int num_bytes, char* mess); // 송신 함수
+
+	void send_avatar_info();
+	void send_move_packet(int mover);
+	void send_add_player(int player_id);
+	void send_login_success();
+	void send_remove_player(int player_id);
+
+	void process_packet(unsigned char* p);
+
+	SOCKET m_client;
+	int m_id;
+	bool m_is_connected;
+	EXP_OVER m_recv_over;
+	int m_prev_recv;
+	char m_username[MAX_NAME_LEN];
+	short m_x, m_y;
+};
