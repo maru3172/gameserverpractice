@@ -15,4 +15,4 @@ enum IOType { IO_SEND, IO_RECV, IO_ACCEPT };
 void error_display(const wchar_t* msg, int err_no);
 
 class SESSION;
-std::array<SESSION, MAX_PLAYERS> clients;
+extern std::array<SESSION, MAX_PLAYERS> clients;

@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "SESSION.h"
 
+std::array<SESSION, MAX_PLAYERS> clients;
+
 SESSION::SESSION()
 {
 	m_is_connected = false;
@@ -98,12 +100,43 @@ void SESSION::process_packet(unsigned char* p)
 	{
 	case C2S_LOGIN:
 	{
+		// 로그인 패킷 받아오고
+		C2S_Login* packet = reinterpret_cast<C2S_Login*>(p);
+		strncpy_s(m_username, packet->username, MAX_NAME_LEN);
+		// 접속했다고 로그
+		std::cout << "Player[" << m_id << "] logged in as " << m_username << std::endl;
 
+		// 브로드캐스트
+		for (auto& other : clients) {
+			if (!other.m_is_connected) continue; // 접속해있지 않았다면
+			if (other.m_id == m_id) continue; // 본인이라면
+			other.send_add_player(m_id);
+			clients[m_id].send_add_player(other.m_id);
+		}
+
+		send_avatar_info(); // 자신에게 본인이 접속했다 알림
 	}
 	break;
 	case C2S_MOVE:
 	{
+		// 이동 패킷 받아오고
+		C2S_Move* packet = reinterpret_cast<C2S_Move*>(p);
+		DIRECTION dir = packet->dir; // 어디로 이동을 입력했는지 받음
 
+		switch (dir)
+		{
+		case UP: m_y = max(0, m_y - 1); break;
+		case DOWN: m_y = min(WORLD_HEIGHT - 1, m_y + 1); break;
+		case LEFT: m_x = max(0, m_x - 1); break;
+		case RIGHT:  m_x = min(WORLD_WIDTH - 1, m_x + 1); break;
+		}
+		
+		// 이동 로그
+		std::cout << "Player[" << m_id << "] moved to (" << m_x << ", " << m_y << ")\n";
+		
+		// 브로드캐스트
+		for (auto& cl : clients)
+			if (true == cl.m_is_connected) cl.send_move_packet(m_id);
 	}
 	break;
 	default: // 플레이어로부터 알 수 없는 패킷이 전송됨

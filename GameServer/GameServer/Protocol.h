@@ -10,23 +10,23 @@ enum PACKET_TYPE { C2S_LOGIN, C2S_MOVE, S2C_LOGIN_RESULT, S2C_AVATAR_INFO, S2C_A
 enum DIRECTION { UP, DOWN, LEFT, RIGHT };
 
 #pragma pack(push, 1)
-// Á¢¼Ó ¿äÃ», Å¬¶óÀÌ¾ðÆ® -> ¼­¹ö
+// ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Ã», Å¬ï¿½ï¿½ï¿½Ì¾ï¿½Æ® -> ï¿½ï¿½ï¿½ï¿½
 struct C2S_Login
 {
 	unsigned char	size;
 	PACKET_TYPE		type;
-	char			username[MAX_NAME_LEN]; // ´©°¡ Á¢¼ÓÇß´ÂÁö
+	char			username[MAX_NAME_LEN]; // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ß´ï¿½ï¿½ï¿½
 };
 
-// ÀÌµ¿ Àü¼Û, Å¬¶óÀÌ¾ðÆ® -> ¼­¹ö
+// ï¿½Ìµï¿½ ï¿½ï¿½ï¿½ï¿½, Å¬ï¿½ï¿½ï¿½Ì¾ï¿½Æ® -> ï¿½ï¿½ï¿½ï¿½
 struct C2S_Move
 {
 	unsigned char	size;
 	PACKET_TYPE		type;
-	DIRECTION		dir; // ÀÌµ¿ ¹æÇâ
+	DIRECTION		dir; // ï¿½Ìµï¿½ ï¿½ï¿½ï¿½ï¿½
 };
 
-// ·Î±×ÀÎ ¼º°ø ¿©ºÎ, ¼­¹ö -> Å¬¶óÀÌ¾ðÆ®
+// ï¿½Î±ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½, ï¿½ï¿½ï¿½ï¿½ -> Å¬ï¿½ï¿½ï¿½Ì¾ï¿½Æ®
 struct S2C_LoginResult
 {
 	unsigned char	size;
@@ -35,7 +35,7 @@ struct S2C_LoginResult
 	char			message[50];
 };
 
-// ³»°¡ Á¢¼Ó ½ÃÀÛÇÑ Á¤º¸, ¼­¹ö -> Å¬¶óÀÌ¾ðÆ®
+// ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½, ï¿½ï¿½ï¿½ï¿½ -> Å¬ï¿½ï¿½ï¿½Ì¾ï¿½Æ®
 struct S2C_AvatarInfo
 {
 	unsigned char	size;
@@ -45,7 +45,7 @@ struct S2C_AvatarInfo
 	short			y;
 };
 
-// ´Ù¸¥ ÇÃ·¹ÀÌ¾î Á¢¼Ó Á¤º¸, ¼­¹ö-> Å¬¶óÀÌ¾ðÆ®
+// ï¿½Ù¸ï¿½ ï¿½Ã·ï¿½ï¿½Ì¾ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½, ï¿½ï¿½ï¿½ï¿½-> Å¬ï¿½ï¿½ï¿½Ì¾ï¿½Æ®
 struct S2C_AddPlayer
 {
 	unsigned char	size;
@@ -56,7 +56,7 @@ struct S2C_AddPlayer
 	short			y;
 };
 
-// ÇÃ·¹ÀÌ¾î ³ª°¨, ¼­¹ö -> Å¬¶óÀÌ¾ðÆ®
+// ï¿½Ã·ï¿½ï¿½Ì¾ï¿½ ï¿½ï¿½ï¿½ï¿½, ï¿½ï¿½ï¿½ï¿½ -> Å¬ï¿½ï¿½ï¿½Ì¾ï¿½Æ®
 struct S2C_RemovePlayer
 {
 	unsigned char	size;
@@ -64,7 +64,7 @@ struct S2C_RemovePlayer
 	int				playerId;
 };
 
-// ÇÃ·¹ÀÌ¾î ÀÌµ¿ µ¿±âÈ­, ¼­¹ö -> Å¬¶óÀÌ¾ðÆ®
+// ï¿½Ã·ï¿½ï¿½Ì¾ï¿½ ï¿½Ìµï¿½ ï¿½ï¿½ï¿½ï¿½È­, ï¿½ï¿½ï¿½ï¿½ -> Å¬ï¿½ï¿½ï¿½Ì¾ï¿½Æ®
 struct S2C_MovePlayer
 {
 	unsigned char	size;
@@ -74,4 +74,4 @@ struct S2C_MovePlayer
 	short			y;
 };
 
-#pragma pop
+#pragma pack(pop)
