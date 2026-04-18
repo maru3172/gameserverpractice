@@ -7,15 +7,15 @@ int main()
 	std::cout << "Enter User Name : ";
 	std::cin >> avatar_name;
 	sf::Socket::Status status = socket.connect("127.0.0.1", PORT);
-	socket.setBlocking(false); // �� ���ŷ
+	socket.setBlocking(false);
 
 	// ���� ������ �Ϸ���� �ʾҴٸ�
 	if (status != sf::Socket::Done) {
-		std::wcout << L"������ ������ �� �����ϴ�.\n";
+		std::wcout << L"서버와 연결할 수 없습니다.\n";
 		while (true);
 	}
 
-	client_initialize(); // ���� �Ϸ�Ǹ� Ŭ���̾�Ʈ �ʱ� ����
+	client_initialize();
 
 	sf::RenderWindow window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "2D CLIENT");
 	g_window = &window;
@@ -53,5 +53,5 @@ int main()
 		window.display();
 	}
 
-	client_finish(); // ������ �Ǹ� ���� ��ȯ�ϰ� Ŭ���̾�Ʈ ���� ����
+	client_finish();
 }
