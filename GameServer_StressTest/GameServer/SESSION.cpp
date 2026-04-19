@@ -13,14 +13,15 @@ SESSION::SESSION(SOCKET s, int id) : m_client(s), m_id(id)
 {
 	m_state = CS_CONNECT;
 	m_recv_over.m_iotype = IO_RECV;
-	m_x = 0;
-	m_y = 0;
+	m_x = rand() % WORLD_WIDTH;
+	m_y = rand() % WORLD_HEIGHT;
 	m_prev_recv = 0;
+	m_move_time = 0;
 }
 
 SESSION::~SESSION()
 {
-	if (m_state == CS_LOGOUT) closesocket(m_client);
+	closesocket(m_client);
 }
 
 void SESSION::do_recv()
@@ -36,6 +37,23 @@ void SESSION::do_send(int num_bytes, char* mess)
 	o->m_wsa.len = num_bytes;
 	memcpy(o->m_buff, mess, num_bytes);
 	WSASend(m_client, &o->m_wsa, 1, 0, 0, &o->m_over, nullptr);
+}
+
+void SESSION::do_move(DIRECTION dir)
+{
+	switch (dir)
+	{
+	case UP: m_y = max(0, m_y - 1); break;
+	case DOWN: m_y = min(WORLD_HEIGHT - 1, m_y + 1); break;
+	case LEFT: m_x = max(0, m_x - 1); break;
+	case RIGHT: m_x = min(WORLD_WIDTH - 1, m_x + 1); break;
+	}
+
+	for (auto& cl : clients) {
+		std::shared_ptr<SESSION> pl = cl.second.load();
+		if (nullptr == pl) continue;
+		if (CS_PLAYING == pl->m_state) pl->send_move_packet(m_id);
+	}
 }
 
 void SESSION::send_avatar_info()
@@ -61,6 +79,7 @@ void SESSION::send_move_packet(int mover)
 	if (nullptr == pl) return;
 	packet.x = pl->m_x;
 	packet.y = pl->m_y;
+	packet.move_time = pl->m_move_time;
 	do_send(packet.size, reinterpret_cast<char*>(&packet));
 }
 
@@ -72,6 +91,7 @@ void SESSION::send_add_player(int player_id)
 	packet.type = S2C_ADD_PLAYER;
 	packet.playerId = player_id;
 	std::shared_ptr<SESSION> pl = clients[player_id].load();
+	if (nullptr == pl) return;
 	memcpy(packet.username, pl->m_username, sizeof(packet.username));  // 세션 정보 가져온 후, 보낼 플레이어 정보를 패킷에 복사
 	packet.x = pl->m_x;
 	packet.y = pl->m_y;
@@ -99,7 +119,7 @@ void SESSION::send_remove_player(int player_id)
 	do_send(packet.size, reinterpret_cast<char*>(&packet));
 }
 
-void SESSION::process_packet(unsigned char* p)
+bool SESSION::process_packet(unsigned char* p)
 {
 	// 현재 패킷이 무슨 상태인지 파악
 	PACKET_TYPE type = *reinterpret_cast<PACKET_TYPE*>(&p[1]);
@@ -117,40 +137,29 @@ void SESSION::process_packet(unsigned char* p)
 
 		// 브로드캐스트
 		for (auto& other : clients) {
-			if (!other.second.load()) continue; // 접속해있지 않았다면
-			if (CS_PLAYING != other.second.load()->m_state) continue; // 본인이라면
-			if (other.second.load()->m_id == m_id) continue; // 보낼려는 타인이 나라면
-			other.second.load()->send_add_player(m_id);
-			send_add_player(other.second.load()->m_id);
+			std::shared_ptr<SESSION> pl = other.second.load();
+			if (nullptr == pl) continue;
+			if (pl->m_id == m_id) continue;
+			if (pl->m_state != CS_PLAYING) continue;
+			send_add_player(pl->m_id);
+			pl->send_add_player(m_id);
 		}
 	}
 	break;
 	case C2S_MOVE:
 	{
-		// 이동 패킷 받아오고
 		C2S_Move* packet = reinterpret_cast<C2S_Move*>(p);
-		DIRECTION dir = packet->dir; // 어디로 이동을 입력했는지 받음
-
-		switch (dir)
-		{
-		case UP: m_y = max(0, m_y - 1); break;
-		case DOWN: m_y = min(WORLD_HEIGHT - 1, m_y + 1); break;
-		case LEFT: m_x = max(0, m_x - 1); break;
-		case RIGHT:  m_x = min(WORLD_WIDTH - 1, m_x + 1); break;
-		}
-		
-		// 이동 로그
-		std::cout << "Player[" << m_id << "] moved to (" << m_x << ", " << m_y << ")\n";
-		
-		// 브로드캐스트
-		for (auto& cl : clients)
-			if (cl.second.load() && cl.second.load()->m_state != CS_LOGOUT) cl.second.load()->send_move_packet(m_id);
+		DIRECTION dir = packet->dir;
+		m_move_time = packet->move_time;
+		do_move(dir);
 	}
 	break;
 	default: // 플레이어로부터 알 수 없는 패킷이 전송됨
 		std::cout << "Unknown packet type received from player[" << m_id << "].\n";
+		return false;
 		break;
 	}
+	return true;
 }
 
 void send_login_fail(SOCKET client, const char* message)
@@ -164,4 +173,22 @@ void send_login_fail(SOCKET client, const char* message)
 	wsa_buf.buf = reinterpret_cast<char*>(&packet);
 	wsa_buf.len = packet.size;
 	WSASend(client, &wsa_buf, 1, 0, 0, nullptr, nullptr);
+}
+
+void disconnect(int key)
+{
+	std::cout << "client[" << key << "] Disconnected.\n";
+	std::shared_ptr<SESSION> cl = clients[key].load();
+	if (nullptr != cl)
+	{
+		cl->m_state = CS_LOGOUT;
+		for (auto& other : clients) {
+			std::shared_ptr<SESSION> o = other.second.load();
+			if (nullptr == o) continue;
+			if (CS_PLAYING == o->m_state) o->send_remove_player(key);
+		}
+		closesocket(cl->m_client);
+		cl->m_client = INVALID_SOCKET;
+	}
+	clients[key].store(nullptr);
 }
