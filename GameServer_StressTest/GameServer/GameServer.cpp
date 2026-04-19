@@ -52,7 +52,7 @@ void worker_thread()
 				break;
 			}
 
-			std::shared_ptr<SESSION> cl = clients[key];
+			std::shared_ptr<SESSION> cl = clients[key].load();
 			if (nullptr == cl) { // 존재하지 않음
 				std::cout << "Session not found for client[" << player_index << "].\n";
 				break;

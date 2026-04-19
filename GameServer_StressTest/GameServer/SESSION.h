@@ -8,6 +8,7 @@ public:
 	SESSION(SOCKET s, int id);
 	~SESSION();
 
+	bool is_visible(short other_x, short other_y);
 	void do_recv(); // 수신 함수
 	void do_send(int num_bytes, char* mess); // 송신 함수
 	void do_move(DIRECTION dir);
@@ -28,6 +29,8 @@ public:
 	char m_username[MAX_NAME_LEN];
 	short m_x, m_y;
 	int m_move_time;
+	std::unordered_set<int> m_visible_players;
+	std::mutex m_visible_mutex;
 };
 
 void send_login_fail(SOCKET client, const char* message);

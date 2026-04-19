@@ -24,6 +24,11 @@ SESSION::~SESSION()
 	closesocket(m_client);
 }
 
+bool SESSION::is_visible(short other_x, short other_y) // 3D게임에선 원, 2D는 사각형, 내 시야 거리 안에 존재하는가?
+{
+	return abs(m_x - other_x) <= VIEW_RANGE && abs(m_y - other_y) <= VIEW_RANGE;
+}
+
 void SESSION::do_recv()
 {
 	DWORD recv_flag = 0;
@@ -41,6 +46,8 @@ void SESSION::do_send(int num_bytes, char* mess)
 
 void SESSION::do_move(DIRECTION dir)
 {
+	auto old_v = m_visible_players; // 보였던 플레이어 기록, 새로이 받아올 필요 없이 캐시 적중률 상승
+
 	switch (dir)
 	{
 	case UP: m_y = max(0, m_y - 1); break;
@@ -49,10 +56,42 @@ void SESSION::do_move(DIRECTION dir)
 	case RIGHT: m_x = min(WORLD_WIDTH - 1, m_x + 1); break;
 	}
 
+	std::unordered_set<int> new_v;
 	for (auto& cl : clients) {
 		std::shared_ptr<SESSION> pl = cl.second.load();
 		if (nullptr == pl) continue;
-		if (CS_PLAYING == pl->m_state) pl->send_move_packet(m_id);
+		if (CS_PLAYING != pl->m_state) continue;
+		if (pl->m_id == m_id) continue;
+		if (is_visible(pl->m_x, pl->m_y)) new_v.insert(pl->m_id);
+	}
+
+	send_move_packet(m_id); // 자기 자신의 이동을 전달함
+
+	for (int id : new_v) {
+		if (old_v.count(id) == 0) {
+			// new_v에 있는데 old_v에 없음 → 새로 시야에 들어온 플레이어
+			send_add_player(id); // 나한테 저 사람 추가
+			std::shared_ptr<SESSION> pl = clients[id].load();
+			if (nullptr == pl) continue;
+			pl->send_add_player(m_id); // 저 사람한테 나 추가
+		}
+	}
+
+	for (int id : old_v) {
+		if (new_v.count(id) == 0) {
+			// old_v에 있는데 new_v에 없음 → 시야에서 벗어난 플레이어
+			send_remove_player(id); // 나한테서 저 사람 제거
+			std::shared_ptr<SESSION> pl = clients[id].load();
+			if (nullptr == pl) continue;
+			pl->send_remove_player(m_id); // 저 사람한테서 나 제거
+		}
+		else
+		{
+			// old_v에도 있고 new_v에도 있음 → 계속 시야 안에 있던 플레이어
+			std::shared_ptr<SESSION> pl = clients[id].load();
+			if (nullptr == pl) continue;
+			pl->send_move_packet(m_id); // 이동 정보만 전송
+		}
 	}
 }
 
@@ -75,7 +114,7 @@ void SESSION::send_move_packet(int mover)
 	packet.size = sizeof(S2C_MovePlayer);
 	packet.type = S2C_MOVE_PLAYER;
 	packet.playerId = mover;
-	std::shared_ptr<SESSION> pl = clients[mover];
+	std::shared_ptr<SESSION> pl = clients[mover].load();
 	if (nullptr == pl) return;
 	packet.x = pl->m_x;
 	packet.y = pl->m_y;
@@ -95,6 +134,15 @@ void SESSION::send_add_player(int player_id)
 	memcpy(packet.username, pl->m_username, sizeof(packet.username));  // 세션 정보 가져온 후, 보낼 플레이어 정보를 패킷에 복사
 	packet.x = pl->m_x;
 	packet.y = pl->m_y;
+
+	m_visible_mutex.lock(); // 여러곳에서 불려짐, lock 필요
+	if (m_visible_players.count(player_id) > 0) {
+		m_visible_mutex.unlock();
+		return; // 이미 그 플레이어가 시야에 존재, 추가 X
+	}
+	m_visible_players.insert(player_id); // 시야에 존재한적 X, 추가 필요
+	m_visible_mutex.unlock();
+
 	do_send(packet.size, reinterpret_cast<char*>(&packet));
 }
 
@@ -116,6 +164,15 @@ void SESSION::send_remove_player(int player_id)
 	packet.size = sizeof(S2C_RemovePlayer);
 	packet.type = S2C_REMOVE_PLAYER;
 	packet.playerId = player_id;
+
+	m_visible_mutex.lock(); // 여러곳에서 불려짐, lock 필요
+	if (m_visible_players.count(player_id) == 0) {
+		m_visible_mutex.unlock();
+		return; // 시야 목록에 없던 플레이어이므로 제거할 이유도 없음
+	}
+	m_visible_players.erase(player_id); // 내 시야에 있던 플레이어 제거
+	m_visible_mutex.unlock();
+
 	do_send(packet.size, reinterpret_cast<char*>(&packet));
 }
 
@@ -132,14 +189,15 @@ bool SESSION::process_packet(unsigned char* p)
 		strncpy_s(m_username, packet->username, MAX_NAME_LEN);
 		// 접속했다고 로그
 		std::cout << "Player[" << m_id << "] logged in as " << m_username << std::endl;
-		send_avatar_info();
 		m_state = CS_PLAYING; // 자신에게 본인이 접속했다 알림
+		send_avatar_info();
 
 		// 브로드캐스트
 		for (auto& other : clients) {
 			std::shared_ptr<SESSION> pl = other.second.load();
 			if (nullptr == pl) continue;
 			if (pl->m_id == m_id) continue;
+			if (!is_visible(pl->m_x, pl->m_y)) continue;
 			if (pl->m_state != CS_PLAYING) continue;
 			send_add_player(pl->m_id);
 			pl->send_add_player(m_id);
@@ -181,9 +239,11 @@ void disconnect(int key)
 	std::shared_ptr<SESSION> cl = clients[key].load();
 	if (nullptr != cl)
 	{
+		// 자신의 연결이 끊겼을 때
 		cl->m_state = CS_LOGOUT;
-		for (auto& other : clients) {
-			std::shared_ptr<SESSION> o = other.second.load();
+		// 자신의 시야 목록에 있던 애들한테만 remove 전송
+		for (auto& other : cl->m_visible_players) {
+			std::shared_ptr<SESSION> o = clients[other].load();
 			if (nullptr == o) continue;
 			if (CS_PLAYING == o->m_state) o->send_remove_player(key);
 		}

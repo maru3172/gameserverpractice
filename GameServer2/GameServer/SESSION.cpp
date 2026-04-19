@@ -57,11 +57,12 @@ void SESSION::send_move_packet(int mover)
 	packet.size = sizeof(S2C_MovePlayer);
 	packet.type = S2C_MOVE_PLAYER;
 	packet.playerId = mover;
-	std::shared_ptr<SESSION> pl = clients[mover];
-	if (nullptr == pl) return;
-	packet.x = pl->m_x;
-	packet.y = pl->m_y;
-	do_send(packet.size, reinterpret_cast<char*>(&packet));
+	std::shared_ptr<SESSION> pl = clients[mover].load();
+	if (pl) {
+		packet.x = pl->m_x;
+		packet.y = pl->m_y;
+		do_send(packet.size, reinterpret_cast<char*>(&packet));
+	}
 }
 
 void SESSION::send_add_player(int player_id)
@@ -117,11 +118,12 @@ void SESSION::process_packet(unsigned char* p)
 
 		// 브로드캐스트
 		for (auto& other : clients) {
-			if (!other.second.load()) continue; // 접속해있지 않았다면
-			if (CS_PLAYING != other.second.load()->m_state) continue; // 본인이라면
-			if (other.second.load()->m_id == m_id) continue; // 보낼려는 타인이 나라면
-			other.second.load()->send_add_player(m_id);
-			send_add_player(other.second.load()->m_id);
+			std::shared_ptr<SESSION> pl = other.second.load();
+			if (!pl) continue;
+			if (CS_PLAYING != pl->m_state) continue;
+			if (pl->m_id == m_id) continue;
+			pl->send_add_player(m_id);
+			send_add_player(pl->m_id);
 		}
 	}
 	break;
