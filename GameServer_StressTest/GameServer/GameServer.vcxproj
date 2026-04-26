@@ -128,12 +128,16 @@
     <ClInclude Include="EXP_OVER.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Protocol.h" />
+    <ClInclude Include="SECTOR.h" />
+    <ClInclude Include="SectorManager.h" />
     <ClInclude Include="SESSION.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="EXP_OVER.cpp" />
     <ClCompile Include="GameServer.cpp" />
     <ClCompile Include="pch.cpp" />
+    <ClCompile Include="SECTOR.cpp" />
+    <ClCompile Include="SectorManager.cpp" />
     <ClCompile Include="SESSION.cpp" />
   </ItemGroup>
   <ItemGroup>

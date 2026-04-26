@@ -30,6 +30,12 @@
     <ClInclude Include="SESSION.h">
       <Filter>Session</Filter>
     </ClInclude>
+    <ClInclude Include="SECTOR.h">
+      <Filter>Session</Filter>
+    </ClInclude>
+    <ClInclude Include="SectorManager.h">
+      <Filter>Session</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="GameServer.cpp">
@@ -42,6 +48,12 @@
       <Filter>Session</Filter>
     </ClCompile>
     <ClCompile Include="SESSION.cpp">
+      <Filter>Session</Filter>
+    </ClCompile>
+    <ClCompile Include="SECTOR.cpp">
+      <Filter>Session</Filter>
+    </ClCompile>
+    <ClCompile Include="SectorManager.cpp">
       <Filter>Session</Filter>
     </ClCompile>
   </ItemGroup>

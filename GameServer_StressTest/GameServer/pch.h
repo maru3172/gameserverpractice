@@ -3,6 +3,7 @@
 #include <WS2tcpip.h>
 #include <MSWSock.h>
 #include <thread>
+#include <array>
 #include <memory>
 #include <atomic>
 #include <mutex>
@@ -15,6 +16,14 @@
 
 constexpr int BUF_SIZE = 200;
 constexpr int VIEW_RANGE = 5;
+
+constexpr int SECTOR_SIZE = VIEW_RANGE * 2 + 1;
+constexpr int MAX_SECTORS_X = (WORLD_WIDTH + SECTOR_SIZE - 1) / SECTOR_SIZE;
+constexpr int MAX_SECTORS_Y = (WORLD_HEIGHT + SECTOR_SIZE - 1) / SECTOR_SIZE;
+
+constexpr int SECTOR_X(int x) { return x / SECTOR_SIZE; }
+constexpr int SECTOR_Y(int y) { return y / SECTOR_SIZE; }
+constexpr int SECTOR_ID(int sx, int sy) { return sy * MAX_SECTORS_X + sx; }
 
 enum IOType { IO_SEND, IO_RECV, IO_ACCEPT };
 enum CL_STATE { CS_CONNECT, CS_PLAYING, CS_LOGOUT };

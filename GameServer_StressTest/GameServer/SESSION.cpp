@@ -1,5 +1,8 @@
 #include "pch.h"
 #include "SESSION.h"
+#include "SectorManager.h"
+
+SectorManager sector_manager;
 
 tbb::concurrent_unordered_map<int, std::atomic<std::shared_ptr<SESSION>>> clients;
 
@@ -46,7 +49,14 @@ void SESSION::do_send(int num_bytes, char* mess)
 
 void SESSION::do_move(DIRECTION dir)
 {
-	auto old_v = m_visible_players; // 보였던 플레이어 기록, 새로이 받아올 필요 없이 캐시 적중률 상승
+	short old_x = m_x, old_y = m_y;
+
+	// Read중 데이터 레이스로 인해 다른 쓰레드의 수정으로 Crash 걸릴 가능성이 있음, 그래서 lock을 걸고 데이터 복사
+	std::unordered_set<int> old_v;
+	{
+		std::lock_guard<std::mutex> lg(m_visible_mutex);
+		old_v = m_visible_players;
+	}
 
 	switch (dir)
 	{
@@ -56,9 +66,17 @@ void SESSION::do_move(DIRECTION dir)
 	case RIGHT: m_x = min(WORLD_WIDTH - 1, m_x + 1); break;
 	}
 
+	// 이동했으니 섹터 변경 체크, 벗어났다면 새 섹터로 옮김
+	int old_sid = SECTOR_ID(SECTOR_X(old_x), SECTOR_Y(old_y));
+	int new_sid = SECTOR_ID(SECTOR_X(m_x), SECTOR_Y(m_y));
+	if (old_sid != new_sid) {
+		sector_manager.remove_player_from_sector(m_id, old_x, old_y);
+		sector_manager.add_player_to_sector(m_id, m_x, m_y);
+	}
+
 	std::unordered_set<int> new_v;
-	for (auto& cl : clients) {
-		std::shared_ptr<SESSION> pl = cl.second.load();
+	for (auto& cl : sector_manager.get_players_in_adjacent_sectors(m_x, m_y)) {
+		std::shared_ptr<SESSION> pl = clients[cl];
 		if (nullptr == pl) continue;
 		if (CS_PLAYING != pl->m_state) continue;
 		if (pl->m_id == m_id) continue;
@@ -191,10 +209,11 @@ bool SESSION::process_packet(unsigned char* p)
 		std::cout << "Player[" << m_id << "] logged in as " << m_username << std::endl;
 		m_state = CS_PLAYING; // 자신에게 본인이 접속했다 알림
 		send_avatar_info();
+		sector_manager.add_player_to_sector(m_id, m_x, m_y);
 
 		// 브로드캐스트
-		for (auto& other : clients) {
-			std::shared_ptr<SESSION> pl = other.second.load();
+		for (auto& c : sector_manager.get_players_in_sector(m_x, m_y)) {
+			std::shared_ptr<SESSION> pl = clients[c];
 			if (nullptr == pl) continue;
 			if (pl->m_id == m_id) continue;
 			if (!is_visible(pl->m_x, pl->m_y)) continue;
@@ -249,6 +268,8 @@ void disconnect(int key)
 		}
 		closesocket(cl->m_client);
 		cl->m_client = INVALID_SOCKET;
+
+		sector_manager.remove_player_from_sector(key, cl->m_x, cl->m_y);
 	}
 	clients[key].store(nullptr);
 }
