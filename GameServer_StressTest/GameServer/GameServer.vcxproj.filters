@@ -16,6 +16,9 @@
     <Filter Include="Session">
       <UniqueIdentifier>{d4de591c-02a1-4955-b372-a6301d3da535}</UniqueIdentifier>
     </Filter>
+    <Filter Include="NPC">
+      <UniqueIdentifier>{ea79d984-6ca8-40c8-acb6-9e22d8fe9ec8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Protocol.h">
@@ -36,6 +39,12 @@
     <ClInclude Include="SectorManager.h">
       <Filter>Session</Filter>
     </ClInclude>
+    <ClInclude Include="OVER_EXP.h">
+      <Filter>NPC</Filter>
+    </ClInclude>
+    <ClInclude Include="NPC_Session.h">
+      <Filter>NPC</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="GameServer.cpp">
@@ -55,6 +64,12 @@
     </ClCompile>
     <ClCompile Include="SectorManager.cpp">
       <Filter>Session</Filter>
+    </ClCompile>
+    <ClCompile Include="OVER_EXP.cpp">
+      <Filter>NPC</Filter>
+    </ClCompile>
+    <ClCompile Include="NPC_Session.cpp">
+      <Filter>NPC</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

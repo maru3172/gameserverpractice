@@ -5,7 +5,9 @@
 #include <thread>
 #include <array>
 #include <memory>
+#include <chrono>
 #include <atomic>
+#include <vector>
 #include <mutex>
 #include "protocol.h"
 #include <tbb/concurrent_unordered_map.h>
@@ -16,6 +18,7 @@
 
 constexpr int BUF_SIZE = 200;
 constexpr int VIEW_RANGE = 5;
+constexpr int DURATION = 1000;
 
 constexpr int SECTOR_SIZE = VIEW_RANGE * 2 + 1;
 constexpr int MAX_SECTORS_X = (WORLD_WIDTH + SECTOR_SIZE - 1) / SECTOR_SIZE;
@@ -26,7 +29,10 @@ constexpr int SECTOR_Y(int y) { return y / SECTOR_SIZE; }
 constexpr int SECTOR_ID(int sx, int sy) { return sy * MAX_SECTORS_X + sx; }
 
 enum IOType { IO_SEND, IO_RECV, IO_ACCEPT };
-enum CL_STATE { CS_CONNECT, CS_PLAYING, CS_LOGOUT };
+enum CL_STATE { CS_CONNECT, CS_PLAYING };
+
+enum COMP_TYPE { OP_ACCEPT, OP_RECV, OP_SEND };
+enum S_STATE { ST_FREE, ST_ALLOC, ST_INGAME };
 
 void error_display(const wchar_t* msg, int err_no);
 

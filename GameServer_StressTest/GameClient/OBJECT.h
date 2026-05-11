@@ -15,13 +15,17 @@ public:
 
 	void draw();
 	void set_name(const char str[]);
+	void set_chat(const char str[]);
 
+	int id;
 	int m_x, m_y;
-	char name[MAX_NAME_LEN];
+	char name[NAME_SIZE];
 
 private:
 	bool m_showing;
 	sf::Sprite m_sprite;
 	sf::Text m_name;
+	sf::Text m_chat;
+	std::chrono::system_clock::time_point m_mess_end_time;
 };
 

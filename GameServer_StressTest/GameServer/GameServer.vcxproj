@@ -126,6 +126,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="EXP_OVER.h" />
+    <ClInclude Include="NPC_Session.h" />
+    <ClInclude Include="OVER_EXP.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Protocol.h" />
     <ClInclude Include="SECTOR.h" />
@@ -135,6 +137,8 @@
   <ItemGroup>
     <ClCompile Include="EXP_OVER.cpp" />
     <ClCompile Include="GameServer.cpp" />
+    <ClCompile Include="NPC_Session.cpp" />
+    <ClCompile Include="OVER_EXP.cpp" />
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="SECTOR.cpp" />
     <ClCompile Include="SectorManager.cpp" />

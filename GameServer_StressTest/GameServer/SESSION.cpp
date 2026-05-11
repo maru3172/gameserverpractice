@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "SESSION.h"
 #include "SectorManager.h"
+#include "NPC_Session.h"
 
 SectorManager sector_manager;
 
