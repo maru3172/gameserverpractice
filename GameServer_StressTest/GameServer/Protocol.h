@@ -15,14 +15,14 @@ enum DIRECTION { UP, DOWN, LEFT, RIGHT };
 struct C2S_Login
 {
 	unsigned char size;
-	char	type;
+	PACKET_TYPE type;
 	char	username[MAX_NAME_LEN];
 };
 
 struct C2S_Move
 {
 	unsigned char size;
-	char	type;
+	PACKET_TYPE	type;
 	DIRECTION    dir;  // 0 : UP, 1 : DOWN, 2 : LEFT, 3 : RIGHT
 	unsigned	move_time;
 };

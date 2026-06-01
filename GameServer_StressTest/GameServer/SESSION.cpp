@@ -15,12 +15,11 @@ m_y(0), m_move_time(0), m_is_npc(false), m_active_npc(false)
 SESSION::SESSION(SOCKET s, int id) : m_client(s), m_id(id), m_state(CS_CONNECT), m_prev_recv(0),
 m_move_time(0), m_is_npc(false), m_active_npc(false)
 {
-	m_state = CS_CONNECT;
 	m_recv_over.m_iotype = IO_RECV;
 	m_x = rand() % WORLD_WIDTH;
 	m_y = rand() % WORLD_HEIGHT;
-	m_prev_recv = 0;
-	m_move_time = 0;
+	m_username[0] = 0;
+	m_last_npc_move_time = std::chrono::system_clock::now();
 }
 
 SESSION::~SESSION()
