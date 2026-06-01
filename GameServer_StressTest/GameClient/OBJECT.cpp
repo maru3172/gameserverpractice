@@ -3,6 +3,7 @@
 
 OBJECT::OBJECT(sf::Texture& t, int x, int y, int x2, int y2)
 {
+	id = 0;
 	m_showing = false;
 	m_sprite.setTexture(t);
 	m_sprite.setTextureRect(sf::IntRect(x, y, x2, y2));
@@ -32,7 +33,7 @@ void OBJECT::set_name(const char str[])
 {
 	m_name.setFont(g_font);
 	m_name.setString(str);
-	if (id < MAX_USER) m_name.setFillColor(sf::Color(255, 255, 255));
+	if (id < NPC_ID_START) m_name.setFillColor(sf::Color(255, 255, 255));
 	else m_name.setFillColor(sf::Color(255, 255, 0));
 	m_name.setStyle(sf::Text::Bold);
 }

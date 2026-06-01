@@ -4,7 +4,7 @@
 int main()
 {
 	std::wcout.imbue(std::locale("korean"));
-	sf::Socket::Status status = s_socket.connect("127.0.0.1", PORT_NUM);
+	sf::Socket::Status status = s_socket.connect("127.0.0.1", PORT);
 	s_socket.setBlocking(false);
 
 	if (status != sf::Socket::Done) {
@@ -13,16 +13,9 @@ int main()
 	}
 
 	client_initialize();
-	CS_LOGIN_PACKET p;
-	p.size = sizeof(p);
-	p.type = CS_LOGIN;
-
-	std::string player_name{ "P" };
+	player_name = "P";
 	player_name += std::to_string(GetCurrentProcessId());
-
-	strcpy_s(p.name, player_name.c_str());
-	send_packet(&p);
-	avatar.set_name(p.name);
+	avatar.set_name(player_name.c_str());
 
 	sf::RenderWindow window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "2D CLIENT");
 	g_window = &window;
@@ -46,10 +39,12 @@ int main()
 				}
 				if (-1 != direction)
 				{
-					CS_MOVE_PACKET p;
+					C2S_Move p;
 					p.size = sizeof(p);
-					p.type = CS_MOVE;
-					p.direction = direction;
+					p.type = C2S_MOVE;
+					p.dir = static_cast<DIRECTION>(direction);
+					p.move_time = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(
+						std::chrono::system_clock::now().time_since_epoch()).count());
 					send_packet(&p);
 				}
 			}

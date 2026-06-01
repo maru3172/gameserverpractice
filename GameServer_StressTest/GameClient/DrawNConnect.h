@@ -3,6 +3,7 @@
 
 extern OBJECT avatar;
 extern OBJECT white_tile, black_tile;
+extern std::string player_name;
 
 void client_initialize();
 

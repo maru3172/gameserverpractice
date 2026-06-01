@@ -4,14 +4,9 @@
 class SECTOR
 {
 public:
-	SECTOR();
+	void add_object(int object_id);
+	void remove_object(int object_id);
 
-	~SECTOR();
-
-	void add_player(int player_id);
-	void remove_player(int player_id);
-
+	std::unordered_set<int> m_objects;
 	std::mutex m_mutex;
-	std::unordered_set<int> m_players;
 };
-

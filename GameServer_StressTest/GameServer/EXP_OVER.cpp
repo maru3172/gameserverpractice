@@ -1,14 +1,14 @@
 #include "pch.h"
 #include "EXP_OVER.h"
 
-EXP_OVER::EXP_OVER()
+EXP_OVER::EXP_OVER() : m_iotype(IO_RECV), m_client_socket(INVALID_SOCKET)
 {
 	ZeroMemory(&m_over, sizeof(m_over));
 	m_wsa.buf = m_buff;
 	m_wsa.len = BUF_SIZE;
 }
 
-EXP_OVER::EXP_OVER(IOType iot) : m_iotype(iot)
+EXP_OVER::EXP_OVER(IOType iot) : m_iotype(iot), m_client_socket(INVALID_SOCKET)
 {
 	ZeroMemory(&m_over, sizeof(m_over));
 	m_wsa.buf = m_buff;

@@ -1,26 +1,14 @@
 #include "pch.h"
 #include "SECTOR.h"
 
-SECTOR::SECTOR()
+void SECTOR::add_object(int object_id)
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
-	m_players.clear();
+	m_objects.insert(object_id);
 }
 
-SECTOR::~SECTOR()
+void SECTOR::remove_object(int object_id)
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
-	m_players.clear();
-}
-
-void SECTOR::add_player(int player_id)
-{
-	std::lock_guard<std::mutex> lock(m_mutex);
-	m_players.insert(player_id);
-}
-
-void SECTOR::remove_player(int player_id)
-{
-	std::lock_guard<std::mutex> lock(m_mutex);
-	m_players.erase(player_id);
+	m_objects.erase(object_id);
 }

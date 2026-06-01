@@ -1,130 +1,74 @@
-constexpr int PORT_NUM = 4000;
-constexpr int BUF_SIZE = 200;
-constexpr int NAME_SIZE = 20;
-constexpr int CHAT_SIZE = 100;
+#pragma once
 
-constexpr int MAX_USER = 10000;
-constexpr int MAX_NPC = 20000;
+constexpr short PORT = 3500;
+constexpr int WORLD_WIDTH = 2000;
+constexpr int WORLD_HEIGHT = 2000;
+constexpr int MAX_PLAYERS = 10000;
+constexpr int NPC_ID_START = MAX_PLAYERS;
+constexpr int MAX_NPCS = 200000;
+constexpr int MAX_NAME_LEN = 20;
 
-constexpr int W_WIDTH = 2000;
-constexpr int W_HEIGHT = 2000;
-
-constexpr char CS_LOGIN = 0;
-constexpr char CS_MOVE = 1;
-constexpr char CS_CHAT = 2;
-constexpr char CS_ATTACK = 3;
-constexpr char CS_TELEPORT = 4;
-constexpr char CS_LOGOUT = 5;
-
-constexpr char SC_LOGIN_INFO = 2;
-constexpr char SC_ADD_OBJECT = 3;
-constexpr char SC_REMOVE_OBJECT = 4;
-constexpr char SC_MOVE_OBJECT = 5;
-constexpr char SC_CHAT = 6;
-constexpr char SC_LOGIN_OK = 7;
-constexpr char SC_LOGIN_FAIL = 8;
-constexpr char SC_STAT_CHANGE = 9;
+enum PACKET_TYPE { C2S_LOGIN, C2S_MOVE, S2C_LOGIN_RESULT, S2C_AVATAR_INFO, S2C_ADD_PLAYER, S2C_REMOVE_PLAYER, S2C_MOVE_PLAYER };
+enum DIRECTION { UP, DOWN, LEFT, RIGHT };
 
 #pragma pack (push, 1)
-struct CS_LOGIN_PACKET
+struct C2S_Login
 {
 	unsigned char size;
 	char	type;
-	char	name[NAME_SIZE];
+	char	username[MAX_NAME_LEN];
 };
 
-struct CS_MOVE_PACKET
+struct C2S_Move
 {
 	unsigned char size;
 	char	type;
-	char	direction;  // 0 : UP, 1 : DOWN, 2 : LEFT, 3 : RIGHT
+	DIRECTION    dir;  // 0 : UP, 1 : DOWN, 2 : LEFT, 3 : RIGHT
 	unsigned	move_time;
 };
 
-struct CS_CHAT_PACKET
+struct S2C_LoginResult
 {
 	unsigned char size;
-	char	type;
-	char	mess[CHAT_SIZE];
+	PACKET_TYPE   type;
+	bool success;
+	char message[50];
 };
 
-struct CS_TELEPORT_PACKET
+struct S2C_AvatarInfo
 {
 	unsigned char size;
-	char	type;
+	PACKET_TYPE   type;
+	int playerId;
+	short x;
+	short y;
 };
 
-struct CS_LOGOUT_PACKET
+struct S2C_AddPlayer
 {
 	unsigned char size;
-	char	type;
+	PACKET_TYPE   type;
+	int playerId;
+	char username[MAX_NAME_LEN];
+	short x;
+	short y;
 };
 
-struct SC_LOGIN_INFO_PACKET
+struct S2C_RemovePlayer
 {
 	unsigned char size;
-	char	type;
-	int		id;
-	int		hp;
-	int		max_hp;
-	int		exp;
-	int		level;
-	short	x, y;
+	PACKET_TYPE   type;
+	int playerId;
 };
 
-struct SC_ADD_OBJECT_PACKET
+struct S2C_MovePlayer
 {
 	unsigned char size;
-	char	type;
-	int		id;
-	short	x, y;
-	char	name[NAME_SIZE];
-};
-
-struct SC_REMOVE_OBJECT_PACKET
-{
-	unsigned char size;
-	char	type;
-	int		id;
-};
-
-struct SC_MOVE_OBJECT_PACKET
-{
-	unsigned char	size;
-	char	type;
-	int		id;
-	short	x, y;
-	unsigned int move_time;
-};
-
-struct SC_CHAT_PACKET
-{
-	unsigned char	size;
-	char	type;
-	int		id;
-	char	mess[CHAT_SIZE];
-};
-
-struct SC_LOGIN_OK_PACKET
-{
-	unsigned char size;
-	char	type;
-};
-
-struct SC_LOGIN_FAIL_PACKET
-{
-	unsigned char size;
-	char	type;
-};
-
-struct SC_STAT_CHANGEL_PACKET
-{
-	unsigned char size;
-	char	type;
-	int		hp;
-	int		max_hp;
-	int		exp;
-	int		level;
+	PACKET_TYPE   type;
+	int playerId;
+	short x;
+	short y;
+	int move_time;
 };
 
 #pragma pack(pop)

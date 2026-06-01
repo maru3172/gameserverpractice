@@ -3,7 +3,7 @@
 class OBJECT
 {
 public:
-	OBJECT() { m_showing = false; }
+	OBJECT() { id = 0; m_showing = false; }
 
 	OBJECT(sf::Texture& t, int x, int y, int x2, int y2);
 
@@ -19,7 +19,7 @@ public:
 
 	int id;
 	int m_x, m_y;
-	char name[NAME_SIZE];
+	char name[MAX_NAME_LEN];
 
 private:
 	bool m_showing;

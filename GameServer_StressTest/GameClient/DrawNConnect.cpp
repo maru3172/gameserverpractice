@@ -16,6 +16,7 @@ OBJECT white_tile, black_tile;
 
 sf::Texture* board, * pieces;
 std::unordered_map <int, OBJECT> players;
+std::string player_name;
 
 void client_initialize()
 {
@@ -42,13 +43,29 @@ void client_finish()
 
 void ProcessPacket(char* ptr)
 {
-	static bool first_time = true;
+	PACKET_TYPE type = *reinterpret_cast<PACKET_TYPE*>(&ptr[1]);
 	switch (ptr[1])
 	{
-	case SC_LOGIN_INFO:
+	case S2C_LOGIN_RESULT:
 	{
-		SC_LOGIN_INFO_PACKET* packet = reinterpret_cast<SC_LOGIN_INFO_PACKET*>(ptr);
-		g_myid = packet->id;
+		S2C_LoginResult* packet = reinterpret_cast<S2C_LoginResult*>(ptr);
+		if (false == packet->success) {
+			std::wcout << L"Login failed.\n";
+			s_socket.disconnect();
+			exit(-1);
+		}
+
+		C2S_Login p;
+		p.size = sizeof(p);
+		p.type = C2S_LOGIN;
+		strcpy_s(p.username, player_name.c_str());
+		send_packet(&p);
+	}
+	break;
+	case S2C_AVATAR_INFO:
+	{
+		S2C_AvatarInfo* packet = reinterpret_cast<S2C_AvatarInfo*>(ptr);
+		g_myid = packet->playerId;
 		avatar.id = g_myid;
 		avatar.move(packet->x, packet->y);
 		g_left_x = packet->x - SCREEN_WIDTH / 2;
@@ -56,10 +73,10 @@ void ProcessPacket(char* ptr)
 		avatar.show();
 	}
 	break;
-	case SC_ADD_OBJECT:
+	case S2C_ADD_PLAYER:
 	{
-		SC_ADD_OBJECT_PACKET* my_packet = reinterpret_cast<SC_ADD_OBJECT_PACKET*>(ptr);
-		int id = my_packet->id;
+		S2C_AddPlayer* my_packet = reinterpret_cast<S2C_AddPlayer*>(ptr);
+		int id = my_packet->playerId;
 
 		if (id == g_myid) {
 			avatar.move(my_packet->x, my_packet->y);
@@ -67,28 +84,27 @@ void ProcessPacket(char* ptr)
 			g_top_y = my_packet->y - SCREEN_HEIGHT / 2;
 			avatar.show();
 		}
-		else if (id < MAX_USER) {
+		else if (id < NPC_ID_START) {
 			players[id] = OBJECT{ *pieces, 0, 0, 64, 64 };
 			players[id].id = id;
 			players[id].move(my_packet->x, my_packet->y);
-			players[id].set_name(my_packet->name);
+			players[id].set_name(my_packet->username);
 			players[id].show();
 		}
 		else {
 			players[id] = OBJECT{ *pieces, 256, 0, 64, 64 };
 			players[id].id = id;
 			players[id].move(my_packet->x, my_packet->y);
-			players[id].set_name(my_packet->name);
+			players[id].set_name(my_packet->username);
 			players[id].show();
 		}
 	}
 	break;
-	case SC_MOVE_OBJECT:
+	case S2C_MOVE_PLAYER:
 	{
-		SC_MOVE_OBJECT_PACKET* my_packet = reinterpret_cast<SC_MOVE_OBJECT_PACKET*>(ptr);
-		int other_id = my_packet->id;
-		if (other_id == g_myid)
-		{
+		S2C_MovePlayer* my_packet = reinterpret_cast<S2C_MovePlayer*>(ptr);
+		int other_id = my_packet->playerId;
+		if (other_id == g_myid) {
 			avatar.move(my_packet->x, my_packet->y);
 			g_left_x = my_packet->x - SCREEN_WIDTH / 2;
 			g_top_y = my_packet->y - SCREEN_HEIGHT / 2;
@@ -96,23 +112,15 @@ void ProcessPacket(char* ptr)
 		else players[other_id].move(my_packet->x, my_packet->y);
 	}
 	break;
-	case SC_REMOVE_OBJECT:
+	case S2C_REMOVE_PLAYER:
 	{
-		SC_REMOVE_OBJECT_PACKET* my_packet = reinterpret_cast<SC_REMOVE_OBJECT_PACKET*>(ptr);
-		int other_id = my_packet->id;
+		S2C_RemovePlayer* my_packet = reinterpret_cast<S2C_RemovePlayer*>(ptr);
+		int other_id = my_packet->playerId;
 		if (other_id == g_myid) avatar.hide();
 		else players.erase(other_id);
 	}
 	break;
-	case SC_CHAT:
-	{
-		SC_CHAT_PACKET* my_packet = reinterpret_cast<SC_CHAT_PACKET*>(ptr);
-		int other_id = my_packet->id;
-		if (other_id == g_myid) avatar.set_chat(my_packet->mess);
-		else players[other_id].set_chat(my_packet->mess);
-	}
-	break;
-	default: printf("Unknown PACKET type [%d]\n", ptr[1]); break;
+	default: printf("Unknown PACKET type [%d]\n", type);
 	}
 }
 

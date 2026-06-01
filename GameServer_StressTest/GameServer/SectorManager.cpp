@@ -4,44 +4,50 @@
 
 SectorManager::SectorManager()
 {
-	for (int i = 0; i < MAX_SECTORS_X * MAX_SECTORS_Y; ++i) {
-		sectors[i] = std::make_shared<SECTOR>();
-	}
+	for (auto& sector : sectors) sector = std::make_shared<SECTOR>();
 }
 
-void SectorManager::add_player_to_sector(int player_id, short x, short y)
+void SectorManager::add_object_to_sector(int object_id, short x, short y)
 {
-	int sector_id = SECTOR_ID(SECTOR_X(x), SECTOR_Y(y)); // 현재 위치한 좌표의 섹터 ID 확보
-	sectors[sector_id]->add_player(player_id);
+	sectors[sector_id(x, y)]->add_object(object_id);
 }
 
-void SectorManager::remove_player_from_sector(int player_id, short x, short y)
+void SectorManager::remove_object_from_sector(int object_id, short x, short y)
 {
-	int sector_id = SECTOR_ID(SECTOR_X(x), SECTOR_Y(y));
-	sectors[sector_id]->remove_player(player_id);
+	sectors[sector_id(x, y)]->remove_object(object_id);
 }
 
-std::vector<int> SectorManager::get_players_in_sector(short x, short y)
+void SectorManager::update_object_sector(int object_id, short old_x, short old_y, short new_x, short new_y)
 {
-	int sid = SECTOR_ID(SECTOR_X(x), SECTOR_Y(y));
-	std::lock_guard<std::mutex> lg(sectors[sid]->m_mutex);
-	return { sectors[sid]->m_players.begin(), sectors[sid]->m_players.end() };
+	int old_sid = sector_id(old_x, old_y);
+	int new_sid = sector_id(new_x, new_y);
+	if (old_sid == new_sid) return;
+
+	sectors[old_sid]->remove_object(object_id);
+	sectors[new_sid]->add_object(object_id);
 }
 
-std::vector<int> SectorManager::get_players_in_adjacent_sectors(short x, short y)
+std::vector<int> SectorManager::get_objects_in_adjacent_sectors(short x, short y)
 {
 	std::vector<int> result;
 	int sx = SECTOR_X(x);
 	int sy = SECTOR_Y(y);
-	for (int dx = -1; dx <= 1; ++dx) {
-		for (int dy = -1; dy <= 1; ++dy) {
+	for (int dy = -1; dy <= 1; ++dy) {
+		for (int dx = -1; dx <= 1; ++dx) {
 			int nsx = sx + dx;
 			int nsy = sy + dy;
-			if (nsx < 0 || nsx >= MAX_SECTORS_X || nsy < 0 || nsy >= MAX_SECTORS_Y) continue;
-			int sid = SECTOR_ID(nsx, nsy);
-			std::lock_guard<std::mutex> lg(sectors[sid]->m_mutex);
-			result.insert(result.end(), sectors[sid]->m_players.begin(), sectors[sid]->m_players.end());
+			if (nsx < 0 || nsx >= MAX_SECTORS_X || nsy < 0 || nsy >= MAX_SECTORS_Y)
+				continue;
+
+			auto& sector = sectors[SECTOR_ID(nsx, nsy)];
+			std::lock_guard<std::mutex> lock(sector->m_mutex);
+			result.insert(result.end(), sector->m_objects.begin(), sector->m_objects.end());
 		}
 	}
 	return result;
+}
+
+int SectorManager::sector_id(short x, short y)
+{
+	return SECTOR_ID(SECTOR_X(x), SECTOR_Y(y));
 }

@@ -1,19 +1,19 @@
 #include "pch.h"
 #include "SESSION.h"
 #include "SectorManager.h"
-#include "NPC_Session.h"
-
-SectorManager sector_manager;
 
 tbb::concurrent_unordered_map<int, std::atomic<std::shared_ptr<SESSION>>> clients;
 
-SESSION::SESSION()
+SESSION::SESSION() : m_client(INVALID_SOCKET), m_id(-1), m_state(CS_FREE), m_prev_recv(0), m_x(0),
+m_y(0), m_move_time(0), m_is_npc(false), m_active_npc(false)
 {
-	std::cout << "SESSION Creation Error!\n";
-	exit(-1);
+	m_username[0] = 0;
+	m_recv_over.m_iotype = IO_RECV;
+	m_last_npc_move_time = std::chrono::system_clock::now();
 }
 
-SESSION::SESSION(SOCKET s, int id) : m_client(s), m_id(id)
+SESSION::SESSION(SOCKET s, int id) : m_client(s), m_id(id), m_state(CS_CONNECT), m_prev_recv(0),
+m_move_time(0), m_is_npc(false), m_active_npc(false)
 {
 	m_state = CS_CONNECT;
 	m_recv_over.m_iotype = IO_RECV;
@@ -25,27 +25,57 @@ SESSION::SESSION(SOCKET s, int id) : m_client(s), m_id(id)
 
 SESSION::~SESSION()
 {
-	closesocket(m_client);
+	if (m_client != INVALID_SOCKET) closesocket(m_client);
 }
 
-bool SESSION::is_visible(short other_x, short other_y) // 3D게임에선 원, 2D는 사각형, 내 시야 거리 안에 존재하는가?
+bool SESSION::can_see(short x, short y) const // 3D게임에선 원, 2D는 사각형, 내 시야 거리 안에 존재하는가?
 {
-	return abs(m_x - other_x) <= VIEW_RANGE && abs(m_y - other_y) <= VIEW_RANGE;
+	return abs(m_x - x) <= VIEW_RANGE && abs(m_y - y) <= VIEW_RANGE;
+}
+
+bool SESSION::can_send() const
+{
+	return (m_id < MAX_PLAYERS) && m_client != INVALID_SOCKET;
 }
 
 void SESSION::do_recv()
 {
 	DWORD recv_flag = 0;
 	memset(&m_recv_over.m_over, 0, sizeof(m_recv_over.m_over));
+	m_recv_over.m_wsa.len = BUF_SIZE - m_prev_recv;
+	m_recv_over.m_wsa.buf = m_recv_over.m_buff + m_prev_recv;
 	WSARecv(m_client, &m_recv_over.m_wsa, 1, 0, &recv_flag, &m_recv_over.m_over, nullptr);
 }
 
 void SESSION::do_send(int num_bytes, char* mess)
 {
+	if (!can_send()) return;
+
 	EXP_OVER* o = new EXP_OVER(IO_SEND);
 	o->m_wsa.len = num_bytes;
 	memcpy(o->m_buff, mess, num_bytes);
 	WSASend(m_client, &o->m_wsa, 1, 0, 0, &o->m_over, nullptr);
+}
+
+void SESSION::send_login_success()
+{
+	S2C_LoginResult packet;
+	packet.size = sizeof(packet);
+	packet.type = S2C_LOGIN_RESULT;
+	packet.success = true;
+	strcpy_s(packet.message, "Login successful.");
+	do_send(packet.size, reinterpret_cast<char*>(&packet));
+}
+
+void SESSION::send_avatar_info()
+{
+	S2C_AvatarInfo packet;
+	packet.size = sizeof(packet);
+	packet.type = S2C_AVATAR_INFO;
+	packet.playerId = m_id;
+	packet.x = m_x;
+	packet.y = m_y;
+	do_send(packet.size, reinterpret_cast<char*>(&packet));
 }
 
 void SESSION::do_move(DIRECTION dir)
@@ -53,145 +83,134 @@ void SESSION::do_move(DIRECTION dir)
 	short old_x = m_x, old_y = m_y;
 
 	// Read중 데이터 레이스로 인해 다른 쓰레드의 수정으로 Crash 걸릴 가능성이 있음, 그래서 lock을 걸고 데이터 복사
-	std::unordered_set<int> old_v;
-	{
-		std::lock_guard<std::mutex> lg(m_visible_mutex);
-		old_v = m_visible_players;
+	switch (dir) {
+	case UP: if (m_y > 0) --m_y; break;
+	case DOWN: if (m_y < WORLD_HEIGHT - 1) ++m_y; break;
+	case LEFT: if (m_x > 0) --m_x; break;
+	case RIGHT: if (m_x < WORLD_WIDTH - 1) ++m_x; break;
 	}
 
-	switch (dir)
-	{
-	case UP: m_y = max(0, m_y - 1); break;
-	case DOWN: m_y = min(WORLD_HEIGHT - 1, m_y + 1); break;
-	case LEFT: m_x = max(0, m_x - 1); break;
-	case RIGHT: m_x = min(WORLD_WIDTH - 1, m_x + 1); break;
+	sector_manager.update_object_sector(m_id, old_x, old_y, m_x, m_y);
+	update_player_view(m_id);
+}
+
+void SESSION::do_random_move()
+{
+	short old_x = m_x, old_y = m_y;
+	std::unordered_set<int> old_viewers;
+	for (int object_id : sector_manager.get_objects_in_adjacent_sectors(old_x, old_y)) {
+		if (!is_pc(object_id)) continue;
+
+		std::shared_ptr<SESSION> player = get_session(object_id);
+		if (nullptr == player || !player->can_send()) continue;
+		if (player->can_see(old_x, old_y)) old_viewers.insert(object_id);
 	}
 
-	// 이동했으니 섹터 변경 체크, 벗어났다면 새 섹터로 옮김
-	int old_sid = SECTOR_ID(SECTOR_X(old_x), SECTOR_Y(old_y));
-	int new_sid = SECTOR_ID(SECTOR_X(m_x), SECTOR_Y(m_y));
-	if (old_sid != new_sid) {
-		sector_manager.remove_player_from_sector(m_id, old_x, old_y);
-		sector_manager.add_player_to_sector(m_id, m_x, m_y);
+	switch (rand() % 4) {
+	case 0: if (m_y > 0) --m_y; break;
+	case 1: if (m_y < WORLD_HEIGHT - 1) ++m_y; break;
+	case 2: if (m_x > 0) --m_x; break;
+	case 3: if (m_x < WORLD_WIDTH - 1) ++m_x; break;
 	}
 
-	std::unordered_set<int> new_v;
-	for (auto& cl : sector_manager.get_players_in_adjacent_sectors(m_x, m_y)) {
-		std::shared_ptr<SESSION> pl = clients[cl];
-		if (nullptr == pl) continue;
-		if (CS_PLAYING != pl->m_state) continue;
-		if (pl->m_id == m_id) continue;
-		if (is_visible(pl->m_x, pl->m_y)) new_v.insert(pl->m_id);
-	}
+	sector_manager.update_object_sector(m_id, old_x, old_y, m_x, m_y);
+	m_last_npc_move_time = std::chrono::system_clock::now();
 
-	send_move_packet(m_id); // 자기 자신의 이동을 전달함
+	std::unordered_set<int> new_viewers;
+	for (int object_id : sector_manager.get_objects_in_adjacent_sectors(m_x, m_y)) {
+		if (!is_pc(object_id)) continue;
 
-	for (int id : new_v) {
-		if (old_v.count(id) == 0) {
-			// new_v에 있는데 old_v에 없음 → 새로 시야에 들어온 플레이어
-			send_add_player(id); // 나한테 저 사람 추가
-			std::shared_ptr<SESSION> pl = clients[id].load();
-			if (nullptr == pl) continue;
-			pl->send_add_player(m_id); // 저 사람한테 나 추가
-		}
-	}
+		std::shared_ptr<SESSION> player = get_session(object_id);
+		if (nullptr == player || !player->can_send()) continue;
+		if (!player->can_see(m_x, m_y)) continue;
+		new_viewers.insert(object_id);
 
-	for (int id : old_v) {
-		if (new_v.count(id) == 0) {
-			// old_v에 있는데 new_v에 없음 → 시야에서 벗어난 플레이어
-			send_remove_player(id); // 나한테서 저 사람 제거
-			std::shared_ptr<SESSION> pl = clients[id].load();
-			if (nullptr == pl) continue;
-			pl->send_remove_player(m_id); // 저 사람한테서 나 제거
-		}
-		else
+		bool already_visible = false;
 		{
-			// old_v에도 있고 new_v에도 있음 → 계속 시야 안에 있던 플레이어
-			std::shared_ptr<SESSION> pl = clients[id].load();
-			if (nullptr == pl) continue;
-			pl->send_move_packet(m_id); // 이동 정보만 전송
+			std::lock_guard<std::mutex> lock(player->m_visible_mutex);
+			already_visible = player->m_visible_objects.count(m_id) > 0;
 		}
+
+		if (already_visible) player->send_move_object(m_id);
+		else player->send_add_object(m_id);
+	}
+
+	for (int player_id : old_viewers) {
+		if (new_viewers.count(player_id) != 0) continue;
+
+		std::shared_ptr<SESSION> player = get_session(player_id);
+		if (nullptr != player) player->send_remove_object(m_id);
 	}
 }
 
-void SESSION::send_avatar_info()
+void SESSION::wake_up()
 {
-	// '나' 자신의 정보를 클라이언트에게 전송
-	S2C_AvatarInfo packet;
-	packet.size = sizeof(S2C_AvatarInfo);
-	packet.type = S2C_AVATAR_INFO;
-	packet.playerId = m_id;
-	packet.x = m_x;
-	packet.y = m_y;
-	do_send(packet.size, reinterpret_cast<char*>(&packet)); // 클라이언트에게 전송
+	bool expected = false;
+	if (!m_active_npc.compare_exchange_strong(expected, true)) return;
+
+	event_type ev;
+	ev.obj_id = m_id;
+	ev.event_id = EVENT_NPC_MOVE;
+	ev.wakeup_time = std::chrono::system_clock::now() + std::chrono::milliseconds(MOVE_COOL_TIME);
+	timer_queue.push(ev);
 }
 
-void SESSION::send_move_packet(int mover)
+void SESSION::send_add_object(int object_id)
 {
-	// 해당 플레이어의 이동을 클라이언트에게 전송
-	S2C_MovePlayer packet;
-	packet.size = sizeof(S2C_MovePlayer);
-	packet.type = S2C_MOVE_PLAYER;
-	packet.playerId = mover;
-	std::shared_ptr<SESSION> pl = clients[mover].load();
-	if (nullptr == pl) return;
-	packet.x = pl->m_x;
-	packet.y = pl->m_y;
-	packet.move_time = pl->m_move_time;
-	do_send(packet.size, reinterpret_cast<char*>(&packet));
-}
+	if (!can_send()) return;
 
-void SESSION::send_add_player(int player_id)
-{
-	// 다른 플레이어의 접속을 클라이언트에게 알림
+	std::shared_ptr<SESSION> obj = get_session(object_id);
+	if (nullptr == obj) return;
+	if (obj->m_state != CS_PLAYING) return;
+
+	{
+		std::lock_guard<std::mutex> lock(m_visible_mutex);
+		if (m_visible_objects.count(object_id) > 0) return;
+		m_visible_objects.insert(object_id);
+	}
+
 	S2C_AddPlayer packet;
-	packet.size = sizeof(S2C_AddPlayer);
+	packet.size = sizeof(packet);
 	packet.type = S2C_ADD_PLAYER;
-	packet.playerId = player_id;
-	std::shared_ptr<SESSION> pl = clients[player_id].load();
-	if (nullptr == pl) return;
-	memcpy(packet.username, pl->m_username, sizeof(packet.username));  // 세션 정보 가져온 후, 보낼 플레이어 정보를 패킷에 복사
-	packet.x = pl->m_x;
-	packet.y = pl->m_y;
+	packet.playerId = object_id;
+	strcpy_s(packet.username, obj->m_username);
+	packet.x = obj->m_x;
+	packet.y = obj->m_y;
+	do_send(packet.size, reinterpret_cast<char*>(&packet));
+}
 
-	m_visible_mutex.lock(); // 여러곳에서 불려짐, lock 필요
-	if (m_visible_players.count(player_id) > 0) {
-		m_visible_mutex.unlock();
-		return; // 이미 그 플레이어가 시야에 존재, 추가 X
+void SESSION::send_remove_object(int object_id)
+{
+	if (!can_send()) return;
+
+	{
+		std::lock_guard<std::mutex> lock(m_visible_mutex);
+		if (m_visible_objects.count(object_id) == 0) return;
+		m_visible_objects.erase(object_id);
 	}
-	m_visible_players.insert(player_id); // 시야에 존재한적 X, 추가 필요
-	m_visible_mutex.unlock();
 
-	do_send(packet.size, reinterpret_cast<char*>(&packet));
-}
-
-void SESSION::send_login_success()
-{
-	// 로그인 성공했음을 플레이어에게 알림
-	S2C_LoginResult packet;
-	packet.size = sizeof(S2C_LoginResult);
-	packet.type = S2C_LOGIN_RESULT;
-	packet.success = true;
-	strncpy_s(packet.message, "Login successful.", sizeof(packet.message));
-	do_send(packet.size, reinterpret_cast<char*>(&packet));
-}
-
-void SESSION::send_remove_player(int player_id)
-{
-	// 플레이어 접속 종료
 	S2C_RemovePlayer packet;
-	packet.size = sizeof(S2C_RemovePlayer);
+	packet.size = sizeof(packet);
 	packet.type = S2C_REMOVE_PLAYER;
-	packet.playerId = player_id;
+	packet.playerId = object_id;
+	do_send(packet.size, reinterpret_cast<char*>(&packet));
+}
 
-	m_visible_mutex.lock(); // 여러곳에서 불려짐, lock 필요
-	if (m_visible_players.count(player_id) == 0) {
-		m_visible_mutex.unlock();
-		return; // 시야 목록에 없던 플레이어이므로 제거할 이유도 없음
-	}
-	m_visible_players.erase(player_id); // 내 시야에 있던 플레이어 제거
-	m_visible_mutex.unlock();
+void SESSION::send_move_object(int object_id)
+{
+	if (!can_send()) return;
 
+	std::shared_ptr<SESSION> obj = get_session(object_id);
+	if (nullptr == obj) return;
+	if (obj->m_state != CS_PLAYING) return;
+
+	S2C_MovePlayer packet;
+	packet.size = sizeof(packet);
+	packet.type = S2C_MOVE_PLAYER;
+	packet.playerId = object_id;
+	packet.x = obj->m_x;
+	packet.y = obj->m_y;
+	packet.move_time = obj->m_move_time;
 	do_send(packet.size, reinterpret_cast<char*>(&packet));
 }
 
@@ -203,74 +222,165 @@ bool SESSION::process_packet(unsigned char* p)
 	{
 	case C2S_LOGIN:
 	{
-		// 로그인 패킷 받아오고
 		C2S_Login* packet = reinterpret_cast<C2S_Login*>(p);
 		strncpy_s(m_username, packet->username, MAX_NAME_LEN);
-		// 접속했다고 로그
-		std::cout << "Player[" << m_id << "] logged in as " << m_username << std::endl;
-		m_state = CS_PLAYING; // 자신에게 본인이 접속했다 알림
+		m_state = CS_PLAYING;
+		sector_manager.add_object_to_sector(m_id, m_x, m_y);
 		send_avatar_info();
-		sector_manager.add_player_to_sector(m_id, m_x, m_y);
-
-		// 브로드캐스트
-		for (auto& c : sector_manager.get_players_in_sector(m_x, m_y)) {
-			std::shared_ptr<SESSION> pl = clients[c];
-			if (nullptr == pl) continue;
-			if (pl->m_id == m_id) continue;
-			if (!is_visible(pl->m_x, pl->m_y)) continue;
-			if (pl->m_state != CS_PLAYING) continue;
-			send_add_player(pl->m_id);
-			pl->send_add_player(m_id);
-		}
+		update_player_view(m_id);
 	}
 	break;
 	case C2S_MOVE:
 	{
 		C2S_Move* packet = reinterpret_cast<C2S_Move*>(p);
-		DIRECTION dir = packet->dir;
 		m_move_time = packet->move_time;
-		do_move(dir);
+		do_move(packet->dir);
 	}
 	break;
 	default: // 플레이어로부터 알 수 없는 패킷이 전송됨
 		std::cout << "Unknown packet type received from player[" << m_id << "].\n";
 		return false;
-		break;
 	}
 	return true;
+}
+
+void add_object_to_viewer_if_needed(std::shared_ptr<SESSION> viewer, int object_id)
+{
+	if (nullptr == viewer || !viewer->can_send()) return;
+	viewer->send_add_object(object_id);
+}
+
+void update_player_view(int player_id)
+{
+	std::shared_ptr<SESSION> player = get_session(player_id);
+	if (nullptr == player || !player->can_send()) return;
+
+	std::unordered_set<int> old_view;
+	{
+		std::lock_guard<std::mutex> lock(player->m_visible_mutex);
+		old_view = player->m_visible_objects;
+	}
+
+	std::unordered_set<int> new_view;
+	for (int object_id : sector_manager.get_objects_in_adjacent_sectors(player->m_x, player->m_y)) {
+		if (object_id == player_id) continue;
+
+		std::shared_ptr<SESSION> obj = get_session(object_id);
+		if (nullptr == obj) continue;
+		if (obj->m_state != CS_PLAYING) continue;
+		if (player->can_see(obj->m_x, obj->m_y)) new_view.insert(object_id);
+	}
+
+	player->send_move_object(player_id);
+
+	for (int object_id : new_view) {
+		std::shared_ptr<SESSION> obj = get_session(object_id);
+		if (nullptr == obj) continue;
+
+		if (old_view.count(object_id) == 0) {
+			player->send_add_object(object_id);
+			if (is_pc(object_id)) obj->send_add_object(player_id);
+			else obj->wake_up();
+		}
+		else if (is_pc(object_id)) obj->send_move_object(player_id);
+	}
+
+	for (int object_id : old_view) {
+		if (new_view.count(object_id) != 0) continue;
+
+		player->send_remove_object(object_id);
+		if (is_pc(object_id)) {
+			std::shared_ptr<SESSION> other = get_session(object_id);
+			if (nullptr != other) other->send_remove_object(player_id);
+		}
+	}
 }
 
 void send_login_fail(SOCKET client, const char* message)
 {
 	S2C_LoginResult packet;
-	packet.size = sizeof(S2C_LoginResult);
+	packet.size = sizeof(packet);
 	packet.type = S2C_LOGIN_RESULT;
 	packet.success = false;
-	strncpy_s(packet.message, message, sizeof(packet.message));
+	strcpy_s(packet.message, message);
 	WSABUF wsa_buf;
 	wsa_buf.buf = reinterpret_cast<char*>(&packet);
 	wsa_buf.len = packet.size;
 	WSASend(client, &wsa_buf, 1, 0, 0, nullptr, nullptr);
 }
 
+int get_new_player_id()
+{
+	for (;;) {
+		int id = player_index++;
+		if (id >= NPC_ID_START) return -1;
+
+		auto iter = clients.find(id);
+		if (iter == clients.end()) return id;
+
+		std::shared_ptr<SESSION> old = iter->second.load();
+		if (nullptr == old || old->m_state == CS_FREE || old->m_state == CS_LOGOUT) return id;
+	}
+}
+
+void process_npc_move(int npc_id)
+{
+	std::shared_ptr<SESSION> npc = get_session(npc_id);
+	if (nullptr == npc || npc->m_id < NPC_ID_START || npc->m_state != CS_PLAYING) return;
+
+	npc->do_random_move();
+
+	bool has_nearby_player = false;
+	for (int object_id : sector_manager.get_objects_in_adjacent_sectors(npc->m_x, npc->m_y)) {
+		if (!is_pc(object_id)) continue;
+		std::shared_ptr<SESSION> player = get_session(object_id);
+		if (nullptr != player && player->can_send() && player->can_see(npc->m_x, npc->m_y)) {
+			has_nearby_player = true;
+			break;
+		}
+	}
+
+	if (has_nearby_player) {
+		event_type ev;
+		ev.obj_id = npc_id;
+		ev.event_id = EVENT_NPC_MOVE;
+		ev.wakeup_time = std::chrono::system_clock::now() + std::chrono::milliseconds(MOVE_COOL_TIME);
+		timer_queue.push(ev);
+	}
+	else npc->m_active_npc = false;
+}
+
 void disconnect(int key)
 {
-	std::cout << "client[" << key << "] Disconnected.\n";
-	std::shared_ptr<SESSION> cl = clients[key].load();
-	if (nullptr != cl)
+	std::shared_ptr<SESSION> cl = get_session(key);
+	if (nullptr == cl || cl->m_id >= NPC_ID_START) return;
+
+	cl->m_state = CS_LOGOUT;
+	sector_manager.remove_object_from_sector(key, cl->m_x, cl->m_y);
+
+	std::unordered_set<int> visible;
 	{
-		// 자신의 연결이 끊겼을 때
-		cl->m_state = CS_LOGOUT;
-		// 자신의 시야 목록에 있던 애들한테만 remove 전송
-		for (auto& other : cl->m_visible_players) {
-			std::shared_ptr<SESSION> o = clients[other].load();
-			if (nullptr == o) continue;
-			if (CS_PLAYING == o->m_state) o->send_remove_player(key);
-		}
+		std::lock_guard<std::mutex> lock(cl->m_visible_mutex);
+		visible = cl->m_visible_objects;
+		cl->m_visible_objects.clear();
+	}
+
+	for (int object_id : visible) {
+		if (!is_pc(object_id)) continue;
+		std::shared_ptr<SESSION> other = get_session(object_id);
+		if (nullptr != other) other->send_remove_object(key);
+	}
+
+	if (cl->m_client != INVALID_SOCKET) {
 		closesocket(cl->m_client);
 		cl->m_client = INVALID_SOCKET;
-
-		sector_manager.remove_player_from_sector(key, cl->m_x, cl->m_y);
 	}
 	clients[key].store(nullptr);
+}
+
+std::shared_ptr<SESSION> get_session(int id)
+{
+	auto iter = clients.find(id);
+	if (iter == clients.end()) return nullptr;
+	return iter->second.load();
 }

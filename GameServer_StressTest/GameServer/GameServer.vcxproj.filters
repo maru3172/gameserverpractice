@@ -39,12 +39,6 @@
     <ClInclude Include="SectorManager.h">
       <Filter>Session</Filter>
     </ClInclude>
-    <ClInclude Include="OVER_EXP.h">
-      <Filter>NPC</Filter>
-    </ClInclude>
-    <ClInclude Include="NPC_Session.h">
-      <Filter>NPC</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="GameServer.cpp">
@@ -64,12 +58,6 @@
     </ClCompile>
     <ClCompile Include="SectorManager.cpp">
       <Filter>Session</Filter>
-    </ClCompile>
-    <ClCompile Include="OVER_EXP.cpp">
-      <Filter>NPC</Filter>
-    </ClCompile>
-    <ClCompile Include="NPC_Session.cpp">
-      <Filter>NPC</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
