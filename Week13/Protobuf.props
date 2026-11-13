@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  vcpkg 로 설치한 protobuf(x64-windows)를 연결한다.
+  vcpkg 위치: 환경변수 VCPKG_ROOT, 없으면 %USERPROFILE%\vcpkg
+  설치 명령: vcpkg install protobuf:x64-windows
+  include / lib 자동 링크 / DLL 출력 폴더 복사는 vcpkg.targets 가 처리한다.
+-->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <VcpkgRoot Condition="'$(VcpkgRoot)' == '' and '$(VCPKG_ROOT)' != ''">$(VCPKG_ROOT)</VcpkgRoot>
+    <VcpkgRoot Condition="'$(VcpkgRoot)' == ''">$(USERPROFILE)\vcpkg</VcpkgRoot>
+    <VcpkgEnableManifest>false</VcpkgEnableManifest>
+    <VcpkgEnabled>true</VcpkgEnabled>
+    <VcpkgTriplet>x64-windows</VcpkgTriplet>
+    <VcpkgAutoLink>true</VcpkgAutoLink>
+    <VcpkgApplocalDeps>true</VcpkgApplocalDeps>
+    <Week13SharedDir>$(MSBuildThisFileDirectory)shared\</Week13SharedDir>
+  </PropertyGroup>
+  <Import Project="$(VcpkgRoot)\scripts\buildsystems\msbuild\vcpkg.props" Condition="Exists('$(VcpkgRoot)\scripts\buildsystems\msbuild\vcpkg.props')" />
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(Week13SharedDir);$(Week13SharedDir)protocol;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <!-- protobuf 생성 코드 경고 억제 -->
+      <DisableSpecificWarnings>4100;4127;4244;4267;4251;4996;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+  </ItemDefinitionGroup>
+</Project>

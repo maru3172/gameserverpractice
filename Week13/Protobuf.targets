@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(VcpkgRoot)\scripts\buildsystems\msbuild\vcpkg.targets" Condition="Exists('$(VcpkgRoot)\scripts\buildsystems\msbuild\vcpkg.targets')" />
+  <Target Name="CheckProtobufInstalled" BeforeTargets="ClCompile">
+    <Error Condition="!Exists('$(VcpkgRoot)\installed\x64-windows\include\google\protobuf\message.h')"
+           Text="protobuf 가 없습니다. vcpkg install protobuf:x64-windows 를 실행하세요. (VcpkgRoot=$(VcpkgRoot))" />
+  </Target>
+</Project>

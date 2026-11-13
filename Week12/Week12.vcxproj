@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64"><Configuration>Debug</Configuration><Platform>x64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion><Keyword>Win32Proj</Keyword><ProjectGuid>{B81A0F90-FE9A-45A3-994D-34E2C0AA1012}</ProjectGuid><RootNamespace>Week12</RootNamespace><WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration"><ConfigurationType>Application</ConfigurationType><UseDebugLibraries>true</UseDebugLibraries><PlatformToolset>v143</PlatformToolset><CharacterSet>Unicode</CharacterSet></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration"><ConfigurationType>Application</ConfigurationType><UseDebugLibraries>false</UseDebugLibraries><PlatformToolset>v143</PlatformToolset><CharacterSet>Unicode</CharacterSet></PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup Label="UserMacros">
+    <Packages>$(ProjectDir)..\LuaServer\packages</Packages>
+    <TbbRoot>$(Packages)\inteltbb.devel.win.2023.2.0.493</TbbRoot>
+    <TbbRedist>$(Packages)\inteltbb.redist.win.2023.2.0.493</TbbRedist>
+    <LuaRoot>$(Packages)\lua.5.5.1\build\native</LuaRoot>
+    <AsioRoot>$(ProjectDir)third_party\asio-asio-1-30-2\asio</AsioRoot>
+  </PropertyGroup>
+  <PropertyGroup><LocalDebuggerWorkingDirectory>$(OutDir)</LocalDebuggerWorkingDirectory></PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile><WarningLevel>Level3</WarningLevel><SDLCheck>true</SDLCheck><ConformanceMode>true</ConformanceMode><LanguageStandard>stdcpp20</LanguageStandard><AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions><PreprocessorDefinitions>ASIO_STANDALONE;_WIN32_WINNT=0x0A00;WIN32_LEAN_AND_MEAN;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions><AdditionalIncludeDirectories>$(TbbRoot)\build\native\include;$(AsioRoot)\include;$(LuaRoot)\include;$(ProjectDir)Server\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories></ClCompile>
+    <Link><SubSystem>Console</SubSystem><AdditionalLibraryDirectories>$(TbbRoot)\build\native\win-x64;$(LuaRoot)\lib\x64\v143\$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories><AdditionalDependencies>lua_static.lib;Ws2_32.lib;Mswsock.lib;%(AdditionalDependencies)</AdditionalDependencies></Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="Server\src\main.cpp" />
+    <ClCompile Include="Server\src\World.cpp" />
+    <ClCompile Include="Server\src\Player.cpp" />
+    <ClCompile Include="Server\src\Npc.cpp" />
+    <ClCompile Include="Server\src\LuaApi.cpp" />
+    <ClCompile Include="Server\src\SectorManager.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Server\include\Protocol.h" />
+    <ClInclude Include="Server\include\Common.h" />
+    <ClInclude Include="Server\include\GameObject.h" />
+    <ClInclude Include="Server\include\Player.h" />
+    <ClInclude Include="Server\include\Npc.h" />
+    <ClInclude Include="Server\include\LuaApi.h" />
+    <ClInclude Include="Server\include\World.h" />
+    <ClInclude Include="Server\include\SectorManager.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Server\scripts\npc.lua" />
+  </ItemGroup>
+  <Target Name="CopyRuntimeFiles" AfterTargets="Build"><ItemGroup><RuntimeFiles Include="$(TbbRoot)\runtimes\win-x64\native\tbb12_debug.dll;$(TbbRedist)\runtimes\win-x64\native\tbb12.dll;$(ProjectDir)Server\scripts\*.lua" /></ItemGroup><Copy SourceFiles="@(RuntimeFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" /></Target>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>
